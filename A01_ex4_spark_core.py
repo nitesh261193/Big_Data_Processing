@@ -60,7 +60,7 @@ def process_line(line):
     # 4. We return res
     return res
 
-
+## Method is used for calculating time between time range
 def time_in_between(current_time, aftertime, time):
     if datetime.datetime.strptime(current_time, "%Y-%m-%d %H:%M:%S") < datetime.datetime.strptime(time,
                                                                                                   "%Y-%m-%d %H:%M:%S") < (
@@ -72,17 +72,38 @@ def time_in_between(current_time, aftertime, time):
 # FUNCTION my_main
 # ------------------------------------------
 def my_main(sc, my_dataset_dir, current_time, current_stop, seconds_horizon):
-    # 1. Operation C1: 'textFile' to load the dataset into an RDD
+
+   ## Seconds horizon is added in time column
     after30min_time = (datetime.datetime.strptime(current_time, "%Y-%m-%d %H:%M:%S") + timedelta(
         seconds=seconds_horizon)).strftime("%Y-%m-%d %H:%M:%S")
+
+    # 1. Operation C1: 'textFile' to load the dataset into an RDD
     inputRDD = sc.textFile(my_dataset_dir)
+
+    ## process_line fn to get all the lines from data and stored in tuple
     inputRDD = inputRDD.map(process_line)
+
+    ## time range  is fetched from date column
     timeRDD = inputRDD.filter(lambda line: time_in_between(current_time, after30min_time, line[0]))
+
+    ## filtered rows where atstpo is 1
+    # (Here line[9] refers 1 that means whether bus stops or not at given busstop )
     atStopRDD = timeRDD.filter(lambda line: line[9] == 1)
+
+    ## filtered rows where given busstop is matched
+    ## (Here line[8] refers busStop that means bus is stopped at given busstop)
+    ## vehicle ID is fetched  from first  row i.e 7th col from vehicleID
     vehicleID = atStopRDD.filter(lambda line: line[8] == current_stop).collect()[0][7]
+
+   ## filtered rows where vehicle id which is fetched from above step, is matched
     vehicleRDD = atStopRDD.filter(lambda line: line[7] == vehicleID)
+
+    ## here vehilce id , date , busStop is mapped in new RDD
     filterRDD = vehicleRDD.map(lambda line: (line[7], line[0], line[8]))
+
+    ## vehicle id column grouped and stored in list (date and busStop)
     solutionRDD = filterRDD.groupBy(lambda line: line[0]).map(lambda line: (line[0], [item[1:] for item in line[1]]))
+
     # Operation A1: 'collect' to get all results
     resVAL = solutionRDD.collect()
     for item in resVAL:

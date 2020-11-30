@@ -46,6 +46,7 @@ def my_main(spark, my_dataset_dir, bus_stop, bus_line, hours_list):
 
     # 2. Operation C2: 'read' to create the DataFrame from the dataset and the schema
     try:
+        ## read data from file
         inputDF = spark.read.format("csv") \
             .option("delimiter", ",") \
             .option("quote", "") \
@@ -53,16 +54,30 @@ def my_main(spark, my_dataset_dir, bus_stop, bus_line, hours_list):
             .schema(my_schema) \
             .load(my_dataset_dir)
 
-        # TO BE COMPLETED
+        ## hour is fetched with date column and stored in new column named "hour"
         inputDF = inputDF.withColumn("hour", format_string("%02d", hour(F.to_timestamp("date", "yyyy-MM-dd HH:mm:ss"))))
-        # inputDF.show()
+
+        ## weekday is fetched with date coulmn and stored in new column "is weekday"
+        # weekday will be in three char and take bool operation with ["Sat", "Sun"] and return 1 or 0
         inputDF = inputDF.withColumn("is_weekend", date_format("date", 'EEE').isin(["Sat", "Sun"]).cast("int"))
+
+        ## dataframe rows are filtered where busStop, weekday, Busline, AtStop, hourlist is matched
         filterdf = inputDF.filter((inputDF["closerStopID"] == bus_stop) & (inputDF["is_weekend"] == 0) & (
                 inputDF["busLineID"] == bus_line) & (inputDF["atStop"] == 1) & (inputDF["hour"].isin(hours_list)))
+
+        ## Same hours are grouped and calculate avg delay
         solutionDF = filterdf.groupBy("hour").avg("delay")
+
+        ## create new dataframe with column hour and avg delay
         solutionDF = solutionDF.select("hour", round("avg(delay)", 2).alias('averageDelay'))
+
+        ## Solution is sorted with delay column
         solutionDF = solutionDF.orderBy("averageDelay", ascending=True)
+
+        ## soultion is saved
         solutionDF.persist()
+
+        ## Solution dataframe is collected
         resVAL = solutionDF.collect()
         for item in resVAL:
             print(item)

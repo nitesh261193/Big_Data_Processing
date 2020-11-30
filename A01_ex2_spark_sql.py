@@ -42,6 +42,7 @@ def my_main(spark, my_dataset_dir, vehicle_id):
 
     # 2. Operation C2: 'read' to create the DataFrame from the dataset and the schema
     try:
+        ## read data from file
         inputDF = spark.read.format("csv") \
             .option("delimiter", ",") \
             .option("quote", "") \
@@ -49,22 +50,38 @@ def my_main(spark, my_dataset_dir, vehicle_id):
             .schema(my_schema) \
             .load(my_dataset_dir)
 
-        # TO BE COMPLETED
-        # print(inputDF.count())
+        ## dayofmonth is fetched from date column  and stored in new column "day"
         inputDF = inputDF.withColumn("day", format_string("%02d",
                                                           dayofmonth(F.to_date("date", "yyyy-MM-dd HH:mm:ss"))))
+
+        ##  DF rows are filtered from vehicle id
         filterDf = inputDF.filter(inputDF["vehicleID"] == vehicle_id)
+
+        ## day and busLine are grouped together in dataframe and calculate count for those rows
         dropDisDF = filterDf.groupBy(["day", "busLineID"]).count()
+
+        ## day is grouped and take count for each day
         dropDisDF = dropDisDF.groupBy('day').count().select('day', f.col('count').alias('n'))
+
+        ## stored max count in variable "max_n"
         max_n = dropDisDF.orderBy(dropDisDF.n.desc()).first().n
+
+        ## Filtered out rows where max count is matched
         MaxBusInDay = dropDisDF.filter(dropDisDF["n"] == max_n)
-        # MaxBusInDay.show()
         l1 = []
+        ## list of day is stored
         for i in range(MaxBusInDay.count()):
             l1.append(MaxBusInDay.collect()[i].asDict("day")["day"])
+
+        ## day and BuslineID is gruped together and take count
         dropDisDF = filterDf.groupBy(["day", "busLineID"]).count()
+
+        ## rows are filtered out where days are matched with daylist (fetched in above step)
         DF = dropDisDF.filter(dropDisDF.day.isin(l1)).select('day', 'busLineID')
-        solutionDF = DF.groupBy('day').agg(F.collect_list("busLineID").alias("sortedBusLineID"))
+
+        ## Dataframe is aggregrate and Busline values are stored in list
+        solutionDF = DF.groupBy('day').agg(sort_array(F.collect_list("busLineID")).alias("sortedBusLineIDs"))
+
         # Operation A1: 'collect' to get all results
         resVAL = sorted(solutionDF.collect())
         for item in resVAL:

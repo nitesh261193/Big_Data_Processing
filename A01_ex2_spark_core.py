@@ -61,36 +61,43 @@ def process_line(line):
     return res
 
 
-def to_list(a):
-    return [a]
-
-
-def append(a, b):
-    a.append(b)
-    return a
-
-
-def extend(a, b):
-    a.extend(b)
-    return a
-
-
 # ------------------------------------------
 # FUNCTION my_main
 # ------------------------------------------
 def my_main(sc, my_dataset_dir, vehicle_id):
+
     # 1. Operation C1: 'textFile' to load the dataset into an RDD
     inputRDD = sc.textFile(my_dataset_dir)
+
+    ## process_line fn to get all the lines from data and stored in tuple
     inputRDD = inputRDD.map(process_line)
+
+    ## dayOfMonth is fetched from date column and added in tuple
+    # (Here line[0] represents date column )
     dayRDD = inputRDD.map(lambda line: tuple([*line, (parse_day(line[0]))]))
+
+    ## filtered rows where vehicle id is matched
     filterRDD = dayRDD.filter(lambda line: line[7] == vehicle_id)
-    groupRDD = filterRDD.groupBy(lambda line: line[10]).map(lambda line: (line[0], len(line[1]))).sortBy(
-        lambda line: line[1], ascending=False)
-    maxValue = groupRDD.collect()[0][1]
-    days_with_max_bus_lines = groupRDD.filter(lambda line: line[1] == maxValue).map(lambda line: line[0]).collect()
-    solutionRDD = filterRDD.groupBy(lambda line: (line[10], line[1])).filter(
-        lambda line: line[0][0] in days_with_max_bus_lines).map(lambda line: line[0])
-    solutionRDD = solutionRDD.combineByKey(to_list, append, extend)
+
+
+    ## day and busline values are mapped
+    # Here .. line[10] refers day of month that is fetched in above step
+    dayAndBusLineRDD = filterRDD.map(lambda line: (line[10], line[1]))
+
+    ## grouped by day and stored busline in list
+    BusLinesRDD = dayAndBusLineRDD.groupByKey().mapValues(lambda line: sorted(list(set(line))))
+
+    ## mapped with day, list of busline id and len of list
+    daYBusLineListRDD = BusLinesRDD.map(lambda line: (line[0], line[1], len(line[1])))
+
+    ## take max value from len of list of buslineIDs
+    maxValueForBusLine = daYBusLineListRDD.max(lambda line: line[2])
+
+    ## filtered out where max value is matched in len col
+    maxBusLinesRDD = daYBusLineListRDD.filter(lambda line: line[2] == maxValueForBusLine[2])
+
+    ## output is sorted by day column
+    solutionRDD = maxBusLinesRDD.map(lambda line: (line[0], line[1])).sortByKey()
 
     # Operation A1: 'collect' to get all results
     resVAL = solutionRDD.collect()

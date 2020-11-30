@@ -65,7 +65,7 @@ def process_line(line):
 # FUNCTION my_main
 # ------------------------------------------
 
-
+## Method for fetching hour from date column
 def parse_hour(date_str):
     try:
         return datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").strftime("%H")
@@ -74,6 +74,9 @@ def parse_hour(date_str):
         return datetime.datetime.today().hour
 
 
+## Method for fetching day from date column
+## day will be given in integer e.g ['mon -1 Tue -2 ...Sat-6 Sun -7]
+## Methid will return integer value as per weekday
 def parse_weekday(date_str):
     try:
         return datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").isoweekday()
@@ -82,16 +85,19 @@ def parse_weekday(date_str):
         return datetime.datetime.today().isoweekday()
 
 
+## Method is for calculating average
 def get_average(rows):
     delays = list(map(lambda line: line[6], rows))
     return sum(delays) / len(delays)
 
 
+## Method is designed for counting of same entity
 def get_count(rows):
     count = list(map(lambda line: rows))
     return len(count)
 
 
+## Method is created for fetching day of month from date coloumn
 def parse_day(date_str):
     try:
         return datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").strftime("%d")
@@ -100,21 +106,54 @@ def parse_day(date_str):
         return datetime.datetime.today().day
 
 
+## Main Funtion
 def my_main(sc, my_dataset_dir, bus_stop, bus_line, hours_list):
     # 1. Operation C1: 'textFile' to load the dataset into an RDD
 
     try:
+        ## read data from file
         inputRDD = sc.textFile(my_dataset_dir)
+
+        ## process_line fn to get all the lines from data and stored in tuple
         inputRDD = inputRDD.map(process_line)
+
+        ## hour is fetched from date coloumn and added in each respective tuple.
+        # (Here line[0] represents date column )
         hourRDD = inputRDD.map(lambda line: tuple([*line, (parse_hour(line[0]))]))
+
+        ## weekday is fetched from date column and added in tuple
+        # (Here line[0] represents date column )
         dateRDD = hourRDD.map(lambda line: tuple([*line, (parse_weekday(line[0]))]))
+
+        ## filtered rows where given busstop is matched
+        #(Here line[8] refers busStop that means bus is stopped at given busstop)
         busStopRDD = dateRDD.filter(lambda line: bus_stop == line[8])
-        atStopRDD = busStopRDD.filter(lambda line: 1 == line[9])
+
+        ## filtered rows where atstpo is 1
+        # (Here line[9] refers 1 that means whether bus stops or not at given busstop )
+        atStopRDD = busStopRDD.filter(lambda line: line[9]==1)
+
+        ## Filtered row where busline is matched
+        # Here line[1] refers busLine
         buslineRDD = atStopRDD.filter(lambda line: bus_line == line[1])
+
+        ## filtered rows where given hours is matched
+        # Here .. Line[10] refers hours column that is added in tuple in step 3
         hourfilterRDD = buslineRDD.filter(lambda line: line[10] in hours_list)
+
+        ## filtered rows where date should be weekday
+        # Here.. line[11] refers day column that is added in tuple on step 4
         isweekdayRDD = hourfilterRDD.filter(lambda line: line[11] not in [6, 7])
-        solutionRDD = isweekdayRDD.groupBy(lambda line: line[10]).map(lambda line: (line[0], round(get_average(line[1]),2)))
-        resVAL = sorted(solutionRDD.collect())
+
+        ## Same hours rows is grouped and calculate avg
+        solutionRDD = isweekdayRDD.groupBy(lambda line: line[10]).map(
+            lambda line: (line[0], round(get_average(line[1]), 2)))
+
+        ## Stored RDD is sorted out
+        solutionRDD = solutionRDD.sortBy(lambda line: line[1])
+
+        ## RDD values are colleced in this step
+        resVAL = solutionRDD.collect()
         for item in resVAL:
             print(item)
     except Exception as e:
@@ -147,7 +186,7 @@ if __name__ == '__main__':
     # 3. We set the path to my_dataset and my_result
     my_local_path = "D://MS_CIT/BD/New_folder/"
     my_databricks_path = "/"
-    my_dataset_dir = "testdata_Ex1/"
+    my_dataset_dir = "my_dataset_complete/"
 
     if local_False_databricks_True == False:
         my_dataset_dir = my_local_path + my_dataset_dir

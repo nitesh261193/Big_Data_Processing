@@ -48,20 +48,38 @@ def my_main(spark, my_dataset_dir, threshold_percentage):
         .schema(my_schema) \
         .load(my_dataset_dir)
 
-    # TO BE COMPLETED
+    ## dayofmonth is fetched from date column  and stored in new column "day"
     inputDF = inputDF.withColumn("day", format_string("%02d", dayofmonth(F.to_date("date", "yyyy-MM-dd HH:mm:ss"))))
+
+    ## hour is fetched with date column and stored in new column named "hour"
     inputDF = inputDF.withColumn("hour", format_string("%02d",hour(F.to_timestamp("date", "yyyy-MM-dd HH:mm:ss"))))
+
+
+    ## day, hour , congestion coulmn is selected from dataframe
     inputDF = inputDF.select("day", "hour", "congestion")
+
+    ## dayOFMonth and hour column is grouped  and calculate sum of congestion and stored in new col named "sum_congestion"
     sumDF = inputDF.groupBy("day", "hour").sum("congestion").select('day', 'hour',f.col('sum(congestion)').alias('sum_congestion'))
+
+    ## dayOFMonth and hour column is grouped  and calculate count of congestion and stored in new col named "CountRow_Congestion"
     countDF = inputDF.groupBy("day", "hour").count().select('day', 'hour',f.col('count').alias('CountRow_Congestion'))
+
+    ## (day and hour) DF is joined with avg congestion DF and stored in new col named "percentage"
     solutionDF = sumDF \
         .join(countDF,on=['day', 'hour'], how='inner') \
         .withColumn("percentage", (F.col("sum_congestion") / F.col("CountRow_Congestion"))*100).drop("sum_congestion", "CountRow_Congestion")
+
+    ## rows are filtered out where percentage is more than 10
     solutionDF = solutionDF.filter(solutionDF["percentage"] > 10)
+
+    ## percentage col is ronded off with 2 digit decimal values
     solutionDF = solutionDF.select("day", "hour", round("percentage", 2).alias("percentage"))
-    solutionDF.show()
+
+    ## Solution is ordered by column "percentage"
+    solutionDF = solutionDF.orderBy("percentage", ascending=False)
+
     # Operation A1: 'collect' to get all results
-    resVAL = sorted(solutionDF.collect())
+    resVAL = solutionDF.collect()
     for item in resVAL:
         print(item)
 

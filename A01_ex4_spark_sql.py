@@ -17,9 +17,7 @@
 # --------------------------------------------------------
 
 import pyspark
-import pyspark.sql.functions as f
 from pyspark.sql import functions as F
-from pyspark.sql.functions import *
 from datetime import timedelta
 import datetime
 
@@ -50,17 +48,29 @@ def my_main(spark, my_dataset_dir, current_time, current_stop, seconds_horizon):
         .schema(my_schema) \
         .load(my_dataset_dir)
     try:
+        ## Seconds horizon is added in time column
         after30min_time = (datetime.datetime.strptime(current_time, "%Y-%m-%d %H:%M:%S") + timedelta(
             seconds=seconds_horizon)).strftime("%Y-%m-%d %H:%M:%S")
 
+
+        ## time range  is fetched from date column
+        ## filtered rows where atstpo is 1
         filterDF = inputDF.filter((F.col("date").between(current_time, after30min_time)) & (inputDF["atStop"] == 1))
+
+        ## vehicle ID is fetched  from first  row where filtered rows where given busstop is matched
         vehicleID = (
             filterDF.select(filterDF["vehicleID"]).where(filterDF["closerStopID"] == current_stop)).first().vehicleID
+
+        ## filtered rows where vehicle id which is fetched from above step, is matched and select column vehicle id , closerStopID, time
         filterDF = filterDF.select("vehicleID", F.col("closerStopID").alias("stop"), F.col("date").alias("time")).where(filterDF["vehicleID"] == vehicleID)
+
+        ## ## vehicle id column grouped and stored in list (time and busStop)
         solutionDF = filterDF.groupBy('vehicleID').agg(F.collect_list(F.struct('time', 'stop')).alias("stations"))
-        solutionDF.show()
+
+
         # Operation A1: 'collect' to get all results
         resVAL = solutionDF.collect()
+
         for item in resVAL:
             print(item)
     except Exception as e:

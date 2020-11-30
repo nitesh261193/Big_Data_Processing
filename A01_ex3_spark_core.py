@@ -61,7 +61,7 @@ def process_line(line):
     # 4. We return res
     return res
 
-
+## Method is used for calculating avg value for any column
 def get_average(rows):
     congestion = list(map(lambda line: line[3], rows))
     return sum(congestion) / len(congestion)
@@ -72,16 +72,36 @@ def get_average(rows):
 # ------------------------------------------
 def my_main(sc, my_dataset_dir, threshold_percentage):
     # 1. Operation C1: 'textFile' to load the dataset into an RDD
+
+    ## read data from file
     inputRDD = sc.textFile(my_dataset_dir)
 
-    # TO BE COMPLETED
+    ## process_line fn to get all the lines from data and stored in tuple
     inputRDD = inputRDD.map(process_line)
+
+    ## hour is fetched from date coloumn and added in each respective tuple.
+    # (Here line[0] represents date column )
     hourRDD = inputRDD.map(lambda line: tuple([*line, (parse_hour(line[0]))]))
+
+    ## dayOfMonth is fetched from date column and added in tuple
+    # (Here line[0] represents date column )
     dayRDD = hourRDD.map(lambda line: tuple([*line, (parse_day(line[0]))]))
+
+    # Here.. line[11] refers day column that is added in line tuple
+    # Here .. Line[10] refers hours column that is added in line tuple
+    ## dayOFMonth and hour column is grouped  and calculate avg congestion
     solutionRDD = dayRDD.groupBy(lambda line: (line[11], line[10])).map(lambda line: (line[0], get_average(line[1])))
-    solutionRDD = solutionRDD.map(lambda line :(line[0][0],line[0][1],line[1]*100)).filter(lambda line: line[2] > threshold_percentage)
+
+    ## Avg Congestion is turned into percentage and filtered out more than given percentage
+    ## line[0][0] refers day and line[0][1] refers hours because of it is stored in tuple in above step
+    solutionRDD = solutionRDD.map(lambda line: (line[0][0], line[0][1], round(line[1] * 100, 2))).filter(
+        lambda line: line[2] > threshold_percentage)
+
+    ## Output is sorted by column day
+    solutionRDD = solutionRDD.sortBy(lambda line:line[0], ascending=False)
+
     # Operation A1: 'collect' to get all results
-    resVAL = sorted(solutionRDD.collect())
+    resVAL = (solutionRDD.collect())
     for item in resVAL:
         print(item)
 
